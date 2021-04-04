@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SimpleADT\Command;
 
 use PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor;
+use SimpleADT\Exception\ComposerException;
 use SimpleADT\Internal\Builder;
 use SimpleADT\Internal\Parser;
 
@@ -11,19 +12,6 @@ class Build extends Base {
 
     /** @var bool */
     private $initialized;
-
-    /** @var bool */
-    private $shouldWatch;
-
-    /** @var string */
-    private $output;
-
-    /** @var array */
-    private $cacheDb;
-    /**
-     * @var bool
-     */
-    private $force;
 
     /**
      * @var Parser
@@ -34,39 +22,50 @@ class Build extends Base {
      * @var Builder
      */
     private $builder;
+
+    /** @var array  */
+    private $attributes;
+    /**
+     * @var string
+     */
+    private $output;
+    /**
+     * @var bool
+     */
+    private $shouldWatch;
+    /**
+     * @var bool
+     */
+    private $force;
+    /**
+     * @var bool
+     */
+    private $noDumpAutoload;
     /**
      * @var string
      */
     private $phpVersion;
+    /**
+     * @var array
+     */
+    private $cacheDb;
+    /**
+     * @var int
+     */
+    private $compiled;
 
     /**
      * Build constructor.
-     * @param string $output
-     * @param bool $force
-     * @param bool $shouldWatch
-     * @param string $phpVersion
      * @param Parser $parser
      * @param Builder $builder
      * @param ConsoleColor $consoleColor
+     * @param array $attributes
      */
-    public function __construct(
-        $output,
-        $force,
-        $shouldWatch,
-        $phpVersion,
-        $parser,
-        $builder,
-        $consoleColor
-    ) {
+    public function __construct($consoleColor, $parser, $builder, $attributes) {
         parent::__construct($consoleColor);
-        $this->initialized = false;
-        $this->shouldWatch = $shouldWatch;
-        $this->force = $force;
-        $this->output = $output;
-        $this->phpVersion = $phpVersion;
         $this->parser = $parser;
         $this->builder = $builder;
-        $this->cacheDb = [];
+        $this->attributes = $attributes;
     }
 
     /**
@@ -74,9 +73,16 @@ class Build extends Base {
      * @return bool
      */
     private function initialize ($initialized) {
+        $this->compiled = 0;
         if ($initialized) {
             return $initialized;
         }
+
+        $this->output = __DIR__."/../../output";
+        $this->shouldWatch = $this->attributes['watch'];
+        $this->force = $this->attributes['force'];
+        $this->noDumpAutoload = $this->attributes['no-dump-autoload'];
+        $this->phpVersion = $this->attributes['php-version'];
 
         if (is_dir($this->output) &&
             is_file($this->output. "/cache-db.json")
@@ -95,31 +101,45 @@ class Build extends Base {
      */
     public function run ($srcDirectories) :void {
         $result = $this->initialized = $this->initialize($this->initialized);
+        try {
+            foreach ($srcDirectories as $srcDirectory) {
+                if (is_dir($srcDirectory)) {
+                    $result = $result && $this->processDirectory($srcDirectory, $result);
+                } else if (is_file($srcDirectory)) {
+                    $result = $result && $this->processFile($srcDirectory);
+                }
 
-        foreach ($srcDirectories as $srcDirectory) {
-            if (is_dir($srcDirectory)) {
-                $result = $result && $this->processDirectory($srcDirectory, $result);
-            }
-            else if (is_file($srcDirectory)) {
-                $result = $result && $this->processFile($srcDirectory);
+                if (!$result) break;
             }
 
-            if (!$result) break;
+            if ($result && $this->compiled > 0 && $this->noDumpAutoload === false) {
+                fwrite(STDOUT, "Running `composer dump-autoload`".PHP_EOL);
+                $this->runComposer("dump-autoload");
+            }
+        }
+        catch (ComposerException $exception) {
+            $errors = $exception->renderError($this->consoleColor);
+        }
+        catch(\Throwable $error) {
+            $errors = array_merge([
+                $this->consoleColor->apply("color_9", "[ERROR] ").$error->getMessage(),
+                ""
+            ], $error->getTrace());
         }
 
-        if ($result) {
-            echo $this->consoleColor->apply("color_33", "[info]"). " Compilation finished.".PHP_EOL;
-            echo $this->consoleColor->apply("color_33", "[info]"). " Running `composer dump-autoload`. This may take a few minutes...".PHP_EOL;
-            $this->runComposer("dump-autoload");
-
-            echo $this->consoleColor->apply("color_33", "[info]"). " Build succeeded.".PHP_EOL;
+        if (!isset($errors)) {
+            fwrite(STDOUT,
+                PHP_EOL.
+                $this->consoleColor->apply("color_33", "[info]"). " Build succeeded.".PHP_EOL
+            );
+            $this->shouldWatch && $this->waitForChanges();
         }
         else {
-            echo $this->consoleColor->apply("color_9", "[Error]"). " Failed to build.".PHP_EOL;
-        }
-
-        if ($this->shouldWatch) {
-            $this->waitForChanges();
+            fwrite(STDERR,
+                PHP_EOL.
+                $this->consoleColor->apply("color_9", "[Error]"). " Failed to build.".PHP_EOL
+            );
+            exit(1);
         }
     }
 
@@ -128,7 +148,8 @@ class Build extends Base {
      * @param bool $shouldContinue
      * @return bool
      */
-    private function processDirectory($path, $shouldContinue) {
+    private function processDirectory(string $path, bool $shouldContinue): bool
+    {
         $files = scandir($path);
 
         foreach ($files as $file) {
@@ -155,7 +176,8 @@ class Build extends Base {
      * @param string $path
      * @return bool
      */
-    private function processFile ($path) {
+    private function processFile (string $path): bool
+    {
         $content = file_get_contents($path);
 
         $matched = [];
@@ -181,7 +203,9 @@ class Build extends Base {
             return true;
         }
 
-        echo  "Compiling ". $fullyQualifiedClassname.PHP_EOL;
+        fwrite(STDOUT, "Compiling ". $fullyQualifiedClassname.PHP_EOL);
+
+        $this->parser->init();
         $adtList = $this->parser->parse($content);
         foreach($adtList as $adt) {
             $this->builder->build(
@@ -190,7 +214,12 @@ class Build extends Base {
                 $this->phpVersion
             );
 
-            return $this->updateCache($fullyQualifiedClassname, $path, $contentHash);
+            if ($this->updateCache($fullyQualifiedClassname, $path, $contentHash)) {
+                $this->compiled++;
+                return true;
+            }
+
+            return false;
         }
     }
 
@@ -202,9 +231,9 @@ class Build extends Base {
      * @param string $fullyQualifiedClassname
      * @param string $path
      * @param string $contentHash
-     * @return bool
+     * @return bool|int
      */
-    private function updateCache($fullyQualifiedClassname, $path, $contentHash)
+    private function updateCache(string $fullyQualifiedClassname, string $path, string $contentHash)
     {
         if (!isset($this->cacheDb[$fullyQualifiedClassname])) {
             $this->cacheDb[$fullyQualifiedClassname] = [];
@@ -218,7 +247,7 @@ class Build extends Base {
     }
 
     /**
-     * @return bool
+     * @return bool|int
      */
     private function exportCacheDb()
     {

@@ -4,11 +4,6 @@ declare(strict_types=1);
 namespace SimpleADT\Internal;
 
 use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PHPStan\PhpDocParser\Lexer\Lexer;
-use PHPStan\PhpDocParser\Parser\ConstExprParser;
-use PHPStan\PhpDocParser\Parser\PhpDocParser;
-use PHPStan\PhpDocParser\Parser\TypeParser;
 use SimpleADT\Internal\Types\Type;
 
 class Parser {
@@ -17,12 +12,28 @@ class Parser {
      */
     private $parser;
 
+    /** @var NodeTraverser  */
+    private $nodeTraverser;
+
+    /** @var AdtNodeVisitor */
+    private $adtVisitor;
+
     /**
      * Parser constructor.
      * @param \PhpParser\Parser $parser
+     * @param NodeTraverser $nodeTraverser
+     * @param AdtNodeVisitor $adtNodeVisitor
      */
-    public function __construct($parser) {
+    public function __construct($parser, $nodeTraverser, $adtNodeVisitor) {
         $this->parser = $parser;
+        $this->nodeTraverser = $nodeTraverser;
+        $this->adtVisitor = $adtNodeVisitor;
+
+        $this->nodeTraverser->addVisitor($this->adtVisitor);
+    }
+
+    public function init() {
+        $this->adtVisitor->flush();
     }
 
     /**
@@ -31,16 +42,8 @@ class Parser {
      */
     public function parse ($code) {
         $phpAst = $this->parser->parse($code);
-
-        $nodeTraverser = new NodeTraverser();
-        $nodeTraverser->addVisitor(new NameResolver);
-        $adtVisitor = new AdtNodeVisitor(
-            new PhpDocParser(new TypeParser(), new ConstExprParser()),
-            new Lexer()
-        );
-        $nodeTraverser->addVisitor($adtVisitor);
-        $nodeTraverser->traverse($phpAst);
-        return $adtVisitor->toResolvedAdt();
+        $this->nodeTraverser->traverse($phpAst);
+        return $this->adtVisitor->toResolvedAdt();
     }
 
 }

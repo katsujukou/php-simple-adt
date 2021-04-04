@@ -7,16 +7,161 @@ foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../vendor/autoload.php
   }
 }
 
-$buildCommand = new SimpleADT\Command\Build(
-        __DIR__."/../output",
-    true,
-    false,
-    'php74',
-    new \SimpleADT\Internal\Parser(
-        (new \PhpParser\ParserFactory)->create(\PhpParser\ParserFactory::PREFER_PHP7),
+$consoleColor = new \PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor();
+$status = 0;
+$whichComposer = [];
+if (!exec('which composer 2>/dev/null', $whichComposer)) {
+    fwrite(STDERR,
+        $consoleColor->apply("color_9", "[ERROR] "). "You need to install Composer on your machine.".PHP_EOL.
+        " * You can learn all about Composer on ". $consoleColor->apply("color_3", "https://getcomposer.org/.").PHP_EOL
+    );
+    exit(1);
+}
+
+define("__COMPOSER__", $whichComposer[0]);
+unset($whichComposer);
+
+list($paths, $attributes) = parseAgs($argv);
+
+if (count($paths) <= 0) {
+    showUsage("Must specify at least one file.");
+}
+
+$phpParser = (new \PhpParser\ParserFactory)->create(\PhpParser\ParserFactory::PREFER_PHP7);
+
+$adtNodeVisitor = new \SimpleADT\Internal\AdtNodeVisitor(
+    new \PHPStan\PhpDocParser\Parser\PhpDocParser(
+        new \PHPStan\PhpDocParser\Parser\TypeParser(),
+        new \PHPStan\PhpDocParser\Parser\ConstExprParser()
     ),
-    new \SimpleADT\Internal\Builder(),
-    new \PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor()
+    new \PHPStan\PhpDocParser\Lexer\Lexer()
 );
 
-$buildCommand->run([__DIR__ . "/../test"]);
+$nodeTraverser = new \PhpParser\NodeTraverser();
+$nodeTraverser->addVisitor(new \PhpParser\NodeVisitor\NameResolver());
+
+$buildCommand = new SimpleADT\Command\Build(
+    $consoleColor,
+    new \SimpleADT\Internal\Parser(
+        $phpParser, $nodeTraverser, $adtNodeVisitor
+    ),
+    new \SimpleADT\Internal\Builder(),
+    $attributes
+);
+
+$buildCommand->run($paths);
+
+function showUsage($error = '') {
+    if ($error) {
+        fwrite(STDERR, $error . "\n\n");
+    }
+    fwrite($error ? STDERR : STDOUT, <<<USAGE
+Usage: phalg build [-h|--help] [--version] [input-path] [-w|--watch]
+                   [-l|--clear] [-f|--force] [--no-dump-autoload]
+                   [--php-version ARG]
+  Compile php source files containing ADTs. 
+ 
+Available options;
+  --version             Show library version
+  -h, --help            Show this help text
+  input-path            Paths to the source files or directories
+  -w,--watch            Watch for changes in local files and
+                        automatically rebuild
+  -l,--clear            Clear the screen on rebuild (watch mode only)
+  -f,--force            Compile all of input files without using compiled cache
+  --no-dump-autoload    Don't run the `composer dump-autoload` command after
+                        successful compilation
+  --php-version         PHP version of output code. You can pass one of
+                        the following: 'php73', 'php74', 'php80'
+
+
+USAGE
+    );
+    exit($error ? 1 : 0);
+}
+
+function showVersion () {
+    $content = json_decode(file_get_contents(__DIR__.'/../composer.json'), true);
+    fwrite(STDOUT, $content['version'].PHP_EOL);
+    exit(0);
+}
+
+function parseAgs ($args) {
+    array_shift($args);
+
+    $paths = [];
+    $attributes = [
+        'force' => false,
+        'no-dump-autoload' => false,
+        'php-version' => 'php73',
+        'watch' => false,
+        'clear' => false,
+    ];
+    $parseOptions = true;
+    $discard = 0;
+    foreach ($args as $i => $arg) {
+        if ($discard) {
+            $discard--;
+            continue;
+        }
+
+        if (!$parseOptions) {
+            $paths[] = $arg;
+            continue;
+        }
+
+        switch ($arg) {
+            case '-w':
+            case '--watch':
+                $attributes['watch'] = true;
+                break;
+
+            case '-l':
+            case '--clear':
+                $attributes['clear'] = true;
+                break;
+
+            case '--no-dump-autoload':
+                $attributes['no-dump-autoload'] = true;
+                break;
+
+            case '-f':
+            case '--force':
+                $attributes['force'] = true;
+                break;
+
+            case '-h':
+            case '--help':
+                showUsage();
+                break;
+
+            case '--version':
+                showVersion();
+                break;
+
+            default:
+                $phpVer = null;
+                if ($arg === '--php-version') {
+                    $phpVer = $args[$i + 1];
+                    $discard++;
+                }
+                else if (preg_match("/--php-version=(.*)/", $arg, $matched)) {
+                    $phpVer = $matched[1];
+                }
+                if ($phpVer) {
+                    if (!in_array($phpVer, ['php73', 'php74', 'php80'])) {
+                        showUsage("option --php-version: Accepted php versions are 'php73', 'php74', 'php80'");
+                    }
+                    $attributes['php-version'] = $phpVer;
+                    break;
+                }
+
+                if ($arg[0] === '-') {
+                    showUsage("Invalid operation $arg.");
+                } else {
+                    $paths[] = $arg;
+                }
+        }
+    }
+    return [$paths, $attributes];
+}

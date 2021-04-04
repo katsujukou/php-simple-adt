@@ -5,6 +5,7 @@ namespace SimpleADT\Command;
 
 
 use PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor;
+use SimpleADT\Exception\ComposerException;
 
 class Base
 {
@@ -28,12 +29,16 @@ class Base
     /**
      * @param $command
      * @param $args
-     * @return false|string
+     * @return string[]
+     * @throws ComposerException
      */
-    protected function runComposer($command, $args=[]) {
+    protected function runComposer($command, $args=[]) :array {
         $status = 0;
         $output = [];
-        exec("composer $command". implode(" ", $args). "",$output, $status);
-        echo "status: ".$status;
+        exec(__COMPOSER__." $command ". implode(" ", $args). "2>&1",$output, $status);
+        if ($status) {
+            throw new ComposerException($command, $args, $output, $status);
+        }
+        return $output;
     }
 }

@@ -51,6 +51,11 @@ class AdtNodeVisitor extends NodeVisitorAbstract
         $this->phpDocLexer = $phpDocLexer;
     }
 
+    public function init() {
+        $this->adt = [];
+        $this->alias = [];
+    }
+
     /**
      * @param \PhpParser\Node $node
      * @return void|null
@@ -86,9 +91,11 @@ class AdtNodeVisitor extends NodeVisitorAbstract
         // Does this class have @template tags in Doc block?
         $tokens = new TokenIterator($this->phpDocLexer->tokenize($node->getDocComment() ?? "/** */"));
         $phpDocNode = $this->phpDocParser->parse($tokens);
-        $isPolymorphic = count($phpDocNode->getTagsByName('@template') +
-                $phpDocNode->getTagsByName('@phpstan-template') +
-                $phpDocNode->getTagsByName('@psalm-template')) > 0;
+        $isPolymorphic = count(array_merge(
+            $phpDocNode->getTagsByName('@template'),
+            $phpDocNode->getTagsByName('@phpstan-template'),
+            $phpDocNode->getTagsByName('@psalm-template'))
+            ) > 0;
 
         $constructors = [];
         foreach ($node->getMethods() as $method) {
@@ -243,12 +250,12 @@ class AdtNodeVisitor extends NodeVisitorAbstract
                             }, $typeParameter->getConstraints())
                         );
                     }, $constructor->getTemplateTags());
-                    $extends = TypeResolver::resolveDocType(
+                    $extends = $constructor->getExtends() !== "" ? TypeResolver::resolveDocType(
                         $constructor->getExtends(),
                         $this->alias,
                         $typeParams,
                         $namespace
-                    );
+                    ) : "";
                     $annotations = array_map(function ($parameter) use ($namespace, $typeParams) {
                         $annotation = $parameter->getAnnotation();
                         if ($annotation instanceof Types\Annotation\TypeParam) {
@@ -282,6 +289,12 @@ class AdtNodeVisitor extends NodeVisitorAbstract
             );
         }
         return $resolved;
+    }
+
+    public function flush()
+    {
+        $this->adt = [];
+        $this->alias = [];
     }
 
 }

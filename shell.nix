@@ -1,14 +1,28 @@
 { pkgs ? import <nixpkgs> {}
 }:
-
-let php-with-extensions = pkgs.php.withExtensions ({ all, enabled }:
-      enabled ++ (with all; [ xdebug ])
-    );
+let
+  php = pkgs.php.buildEnv {
+    extensions = { all, ...}: with all; [
+      mbstring
+      json
+      openssl
+      tokenizer
+      filter
+      xdebug
+    ];
+    extraConfig = ''
+      [XDebug]
+      xdebug.mode = debug
+      xdebug.start_with_request = yes
+      xdebug.client_port = 9000
+      xdebug.idekey = phpnixshell
+      '';
+  };
 in
   pkgs.mkShell {
     buildInputs = [
-      php-with-extensions
-      php-with-extensions.packages.composer2
+      php
+      php.packages.composer2
     ];
 
     shellHook = ''

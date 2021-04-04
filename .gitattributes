@@ -1,7 +1,7 @@
 * text eol=lf
 
-*.nix
 *.php text
 *.json text
 *.lock text
+*.nix
 *.md text

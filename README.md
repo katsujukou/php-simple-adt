@@ -29,3 +29,9 @@ abstract class Shape extends \SimpleADT\ADT {
         return self::create($p1, $p2, $p3);
     }
 }
+```
+Then run this command.
+```
+./vendor/bin/phalg src
+```
+

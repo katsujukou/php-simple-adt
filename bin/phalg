@@ -1,6 +1,5 @@
 #! /usr/bin/env php
 <?php
-
 foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../vendor/autoload.php'] as $file) {
   if (file_exists($file)) {
     require $file;
@@ -8,5 +7,16 @@ foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../vendor/autoload.php
   }
 }
 
-$buildCommand = new SimpleADT\Command\Build();
-$buildCommand->run();
+$buildCommand = new SimpleADT\Command\Build(
+        __DIR__."/../output",
+    true,
+    false,
+    'php74',
+    new \SimpleADT\Internal\Parser(
+        (new \PhpParser\ParserFactory)->create(\PhpParser\ParserFactory::PREFER_PHP7),
+    ),
+    new \SimpleADT\Internal\Builder(),
+    new \PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor()
+);
+
+$buildCommand->run([__DIR__ . "/../test"]);

@@ -9,6 +9,6 @@ abstract class ADT {
      * @param mixed... $params
      * @return mixed
      */
-    protected static function create($params) {
+    protected static function create(...$params) {
     }
 }

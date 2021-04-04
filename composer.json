@@ -4,9 +4,7 @@
     "type": "library",
     "version": "0.1.0",
     "scripts": {
-        "post-install-cmd": [
-            "mkdir -p ./output"
-        ]
+        "post-install-cmd": "\\SimpleADT\\Command\\Install::postInstall"
     },
     "require": {
         "php": "^7.2.0|^8.0",

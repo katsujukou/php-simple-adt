@@ -3,11 +3,6 @@
     "description": "A simple algebraic data types (a.k.a. ADT) library based on PHP's subtyping polymorphism",
     "type": "library",
     "version": "0.1.0",
-    "scripts": {
-        "post-install-cmd": [
-            "mkdir -p ./output"
-        ]
-    },
     "require": {
         "php": "^7.2.0|^8.0",
         "nikic/php-parser": "^4.10",

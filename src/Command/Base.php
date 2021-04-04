@@ -35,7 +35,7 @@ class Base
     protected function runComposer($command, $args=[]) :array {
         $status = 0;
         $output = [];
-        exec(__COMPOSER__." $command ". implode(" ", $args). "2>&1",$output, $status);
+        exec(__COMPOSER__." $command ". implode(" ", $args). " 2>&1",$output, $status);
         if ($status) {
             throw new ComposerException($command, $args, $output, $status);
         }

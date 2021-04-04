@@ -114,7 +114,7 @@ class Build extends Base {
 
             if ($result && $this->compiled > 0 && $this->noDumpAutoload === false) {
                 fwrite(STDOUT, "Running `composer dump-autoload`".PHP_EOL);
-                $this->runComposer("dump-autoload");
+                $this->runComposer("dump-autoload", ["-d", __DIR__."/../../"]);
             }
         }
         catch (ComposerException $exception) {

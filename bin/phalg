@@ -7,13 +7,13 @@ foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../vendor/autoload.php
   }
 }
 
-$consoleColor = new \PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor();
+//$consoleColor = new \PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor();
 $status = 0;
 $whichComposer = [];
 if (!exec('which composer 2>/dev/null', $whichComposer)) {
     fwrite(STDERR,
-        $consoleColor->apply("color_9", "[ERROR] "). "You need to install Composer on your machine.".PHP_EOL.
-        " * You can learn all about Composer on ". $consoleColor->apply("color_3", "https://getcomposer.org/.").PHP_EOL
+        "[ERROR] You need to install Composer on your machine.".PHP_EOL.
+        " * You can learn all about Composer on https://getcomposer.org/.".PHP_EOL
     );
     exit(1);
 }
@@ -41,7 +41,7 @@ $nodeTraverser = new \PhpParser\NodeTraverser();
 $nodeTraverser->addVisitor(new \PhpParser\NodeVisitor\NameResolver());
 
 $buildCommand = new SimpleADT\Command\Build(
-    $consoleColor,
+//    $consoleColor,
     new \SimpleADT\Internal\Parser(
         $phpParser, $nodeTraverser, $adtNodeVisitor
     ),

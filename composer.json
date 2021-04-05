@@ -8,7 +8,7 @@
         "nikic/php-parser": "^4.10",
         "ext-json": "*",
         "phpstan/phpdoc-parser": "^0.5.3",
-        "php-parallel-lint/php-console-color": "^1.0",
+        "php-parallel-lint/php-console-color": "~0.3",
         "phpstan/phpstan": "^0.12.83"
     },
     "autoload": {

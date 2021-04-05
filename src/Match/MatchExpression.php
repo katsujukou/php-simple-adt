@@ -19,14 +19,28 @@ final class MatchExpression
      */
     private $adtClass = null;
 
+    /**
+     * MatchExpression constructor.
+     * @param \ReflectionClass $adtClass
+     * @param mixed $target
+     * @param string $caseClass
+     * @param \Closure $expr
+     */
     protected function __construct(\ReflectionClass $adtClass, $target, string $caseClass, \Closure $expr) {
-        $this->adtClass = $target;
+        $this->adtClass = $adtClass;
         $this->target = $target;
         $this->caseExpr = [
             $caseClass => $expr
         ];
     }
 
+    /**
+     * @param \ReflectionClass $adtClass
+     * @param mixed $target
+     * @param string $caseClass
+     * @param \Closure $expr
+     * @return MatchExpression
+     */
     public static function singleton(\ReflectionClass $adtClass, $target, string $caseClass, \Closure $expr) :MatchExpression {
         if (!$adtClass->isInstance($target)) {
             throw new InvalidArgumentException("Argument 2 passed to ". self::class."::".__METHOD__.
@@ -38,12 +52,20 @@ final class MatchExpression
         return $instance;
     }
 
-    public function case(string $caseClass, $f) :MatchExpression {
+    /**
+     * @param string $caseClass
+     * @param \Closure $f
+     * @return MatchExpression
+     */
+    public function case(string $caseClass, \Closure $f) :MatchExpression {
         $this->checkCaseClass($caseClass);
         $this->caseExpr[$caseClass] = $f;
         return $this;
     }
 
+    /**
+     * @param string $caseClass
+     */
     private function checkCaseClass(string $caseClass) :void {
         $adtClassName = $this->adtClass->getNamespaceName();
 
@@ -71,10 +93,18 @@ final class MatchExpression
         }
     }
 
+    /**
+     * @param \Closure $f
+     * @return mixed
+     */
     public function default($f) {
         $this->caseExpr["_"] = $f;
+        return $this->done();
     }
 
+    /**
+     * @return mixed
+     */
     public function done() {
         foreach ($this->caseExpr as $case => $expr) {
             if ($case === "_") {
@@ -86,16 +116,13 @@ final class MatchExpression
             }
         }
         throw new PatternMatchException("Failed pattern match at ");
-
     }
 
-    private function setADTClass(\ReflectionObject $reflection)
-    {
-        $this->adtClass = $reflection;
-    }
-
-
-    private function runCaseExpr($expr) {
+    /**
+     * @param \Closure $expr
+     * @return mixed
+     */
+    private function runCaseExpr(\Closure $expr) {
         try {
             $reflection = new \ReflectionFunction($expr);
         }

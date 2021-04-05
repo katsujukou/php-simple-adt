@@ -4,15 +4,15 @@
 namespace SimpleADT\Command;
 
 
-use PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor;
+//use PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor;
 use SimpleADT\Exception\ComposerException;
 
 class Base
 {
-    /**
-     * @var ConsoleColor
-     */
-    protected $consoleColor;
+//    /**
+//     * @var ConsoleColor
+//     */
+//    protected $consoleColor;
     /**
      * @var string
      */
@@ -22,8 +22,8 @@ class Base
      * Base constructor.
      * @param ConsoleColor $consoleColor
      */
-    public function __construct($consoleColor) {
-        $this->consoleColor = $consoleColor;
+    public function __construct(/*$consoleColor*/) {
+//        $this->consoleColor = $consoleColor;
     }
 
     /**

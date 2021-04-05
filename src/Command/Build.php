@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace SimpleADT\Command;
 
-use PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor;
+//use PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor;
 use SimpleADT\Exception\ComposerException;
 use SimpleADT\Internal\Builder;
 use SimpleADT\Internal\Parser;
@@ -58,11 +58,10 @@ class Build extends Base {
      * Build constructor.
      * @param Parser $parser
      * @param Builder $builder
-     * @param ConsoleColor $consoleColor
      * @param array $attributes
      */
-    public function __construct($consoleColor, $parser, $builder, $attributes) {
-        parent::__construct($consoleColor);
+    public function __construct($parser, $builder, $attributes) {
+        parent::__construct();
         $this->parser = $parser;
         $this->builder = $builder;
         $this->attributes = $attributes;
@@ -113,8 +112,8 @@ class Build extends Base {
             }
 
             if ($result && $this->compiled > 0 && $this->noDumpAutoload === false) {
-                fwrite(STDOUT, "Running `composer dump-autoload`".PHP_EOL);
-                $this->runComposer("dump-autoload", ["-d", __DIR__."/../../"]);
+                fwrite(STDOUT, "Updating classmap".PHP_EOL);
+                $this->updateClassmap();
             }
         }
         catch (ComposerException $exception) {
@@ -122,7 +121,7 @@ class Build extends Base {
         }
         catch(\Throwable $error) {
             $errors = array_merge([
-                $this->consoleColor->apply("color_9", "[ERROR] ").$error->getMessage(),
+                "[ERROR] ".$error->getMessage(),
                 ""
             ], $error->getTrace());
         }
@@ -130,17 +129,21 @@ class Build extends Base {
         if (!isset($errors)) {
             fwrite(STDOUT,
                 PHP_EOL.
-                $this->consoleColor->apply("color_33", "[info]"). " Build succeeded.".PHP_EOL
+                "[info] Build succeeded.".PHP_EOL
             );
             $this->shouldWatch && $this->waitForChanges();
         }
         else {
             fwrite(STDERR,
                 PHP_EOL.
-                $this->consoleColor->apply("color_9", "[Error]"). " Failed to build.".PHP_EOL
+                "[Error] Failed to build.".PHP_EOL
             );
             exit(1);
         }
+    }
+
+    private function updateClassmap() {
+        $classmap = require(__DIR__."../../../../composer/autoload_classmap.php");
     }
 
     /**

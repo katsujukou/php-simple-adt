@@ -13,10 +13,14 @@
     },
     "autoload": {
         "psr-4": {
-            "SimpleADT\\": "src/"
+            "SimpleADT\\": "src/",
+            "Test\\" : "test/"
         },
         "classmap": [
             "output"
+        ],
+        "files": [
+            "src/helper.php"
         ]
     },
     "license": "MIT",

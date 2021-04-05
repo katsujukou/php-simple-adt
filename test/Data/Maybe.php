@@ -1,6 +1,6 @@
 <?php
 
-namespace Test\Data\Maybe;
+namespace Test\Data;
 
 
 /** @template t */

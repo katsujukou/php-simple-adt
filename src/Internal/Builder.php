@@ -13,36 +13,36 @@ class Builder {
      * @param Type $adt
      * @param $output
      * @param $phpVersion
+     * @return array<string, string>
      */
     public function build (
-        $adt,
-        $output,
-        $phpVersion
-    ) {
+        Type $adt,
+        string $output,
+        string $phpVersion
+    ) :array {
         if (!is_dir($output)) {
             mkdir($output);
         }
 
         switch ($phpVersion) {
             case "php73":
-                $this->forPhp73($output, $adt);
-                return ;
+                return $this->forPhp73($output, $adt);
+
             case "php74":
             case "php80":
-                $this->forPhp74($output, $adt);
-                return;
-            default:
-                $this->forPhp7x($output, $adt);
-        }
+                return $this->forPhp74($output, $adt);
 
+            default:
+                return $this->forPhp7x($output, $adt);
+        }
     }
 
     private function forPhp73($output, $adt) {
-        $this->forPhp7x($output, $adt);
+        return $this->forPhp7x($output, $adt);
     }
 
     private function forPhp74($output, $adt) {
-        $this->forPhp7x($output, $adt, true);
+        return $this->forPhp7x($output, $adt, true);
     }
 
 
@@ -51,11 +51,15 @@ class Builder {
      * @param Type $adt
      */
     private function forPhp7x($outputPath, $adt, $enableTypedProperty = false) {
+        $classmap = [];
+
         foreach ($adt->getConstructors() as $constructor) {
+            $namespace = preg_replace("/^\\\\/", "", $adt->getName());
+
             $code = [];
             $indent = 0;
             $code = $this->put($code, $indent, "<?php");
-            $code = $this->put($code, $indent, "namespace " . preg_replace("/^\\\\/", "", $adt->getName()) . ";");
+            $code = $this->put($code, $indent, "namespace " . $namespace . ";");
             $code = $this->put($code, $indent, "/**");
             foreach ($constructor->getTemplateTags() as $tag) {
                 $code = $this->put($code, $indent, " * @template " . $tag->show());
@@ -109,7 +113,15 @@ class Builder {
 
             $output = $outputPath. DIRECTORY_SEPARATOR. $constructor->getName().".php";
             file_put_contents($output, implode(PHP_EOL, $code));
+            $classmap[$namespace."\\".$constructor->getName()] =
+                implode(DIRECTORY_SEPARATOR, [
+                    "__ADT_OUTPUT_DIR__",
+                    str_replace("\\", "_", $adt->getName()),
+                    $constructor->getName().".php"
+                ]);
         }
+
+        return $classmap;
     }
 
     /**

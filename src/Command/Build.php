@@ -3,8 +3,7 @@ declare(strict_types=1);
 
 namespace SimpleADT\Command;
 
-//use PHP_Parallel_Lint\PhpConsoleColor\ConsoleColor;
-use SimpleADT\Exception\ComposerException;
+use SimpleADT\Exception\ADTRuntimeException;
 use SimpleADT\Internal\Builder;
 use SimpleADT\Internal\Parser;
 
@@ -55,13 +54,17 @@ class Build extends Base {
     private $compiled;
 
     /**
+     * @var array<string, string>
+     */
+    private $classmap;
+
+    /**
      * Build constructor.
      * @param Parser $parser
      * @param Builder $builder
      * @param array $attributes
      */
     public function __construct($parser, $builder, $attributes) {
-        parent::__construct();
         $this->parser = $parser;
         $this->builder = $builder;
         $this->attributes = $attributes;
@@ -73,6 +76,7 @@ class Build extends Base {
      */
     private function initialize ($initialized) {
         $this->compiled = 0;
+        $this->classmap = [];
         if ($initialized) {
             return $initialized;
         }
@@ -112,16 +116,15 @@ class Build extends Base {
             }
 
             if ($result && $this->compiled > 0 && $this->noDumpAutoload === false) {
-                fwrite(STDOUT, "Updating classmap".PHP_EOL);
-                $this->updateClassmap();
+                fwrite(STDOUT, "Updating classmap file".PHP_EOL);
+                if (!$this->updateClassmap()) {
+                    fwrite(STDERR,"\e[33m[Warn]\e[0m File autoload_classmap.php does noe exist.");
+                }
             }
-        }
-        catch (ComposerException $exception) {
-            $errors = $exception->renderError($this->consoleColor);
         }
         catch(\Throwable $error) {
             $errors = array_merge([
-                "[ERROR] ".$error->getMessage(),
+                "\e[31m[Error]\e[0m ".$error->getMessage(),
                 ""
             ], $error->getTrace());
         }
@@ -129,21 +132,57 @@ class Build extends Base {
         if (!isset($errors)) {
             fwrite(STDOUT,
                 PHP_EOL.
-                "[info] Build succeeded.".PHP_EOL
+                "\e[34m[info]\e[0m Build succeeded.".PHP_EOL
             );
             $this->shouldWatch && $this->waitForChanges();
         }
         else {
             fwrite(STDERR,
                 PHP_EOL.
-                "[Error] Failed to build.".PHP_EOL
+                "\e[31m[Error]\e[0m Failed to build.".PHP_EOL
             );
             exit(1);
         }
     }
 
-    private function updateClassmap() {
-        $classmap = require(__DIR__."../../../../composer/autoload_classmap.php");
+    /**
+     * @return bool
+     */
+    private function updateClassmap() :bool {
+        $path = realpath(__DIR__ . "/../../../../composer/autoload_classmap.php");
+        if ($path === false) {
+            return false;
+        }
+
+        try {
+            copy($path, $path . '.bak');
+            $orig = file_get_contents($path);
+            $modified = preg_replace_callback("/([\s\S]*)(^return array\([\s\S]*)/m", function ($matched) {
+                return $matched[1] . <<<CLASSMAP
+// @modified by Phalg
+\$adtOutputDir = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR . 'output';
+
+
+CLASSMAP . $matched[2];
+            }, $orig);
+            $modified = trim(preg_replace("/^\);$/m", "", $modified)) . PHP_EOL
+                . strtr(var_export($this->classmap, true), [
+                    "array (" => "",
+                    "'__ADT_OUTPUT_DIR__" => "\$adtOutputDir . '"
+                ]) . ";";
+
+            file_put_contents($path . ".php", $modified);
+            unlink($path . '.bak');
+            return true;
+        }
+        catch (\Throwable $e) {
+            rename($path.'.bak', $path);
+            throw new ADTRuntimeException(
+                "Failed to update autoload classmap".PHP_EOL.$e->getMessage(),
+                $e->getCode(),
+                $e->getPrevious()
+            );
+        }
     }
 
     /**
@@ -211,7 +250,7 @@ class Build extends Base {
         $this->parser->init();
         $adtList = $this->parser->parse($content);
         foreach($adtList as $adt) {
-            $this->builder->build(
+            $classmap = $this->builder->build(
                 $adt,
                 $this->output . DIRECTORY_SEPARATOR . str_replace("\\", "_", $fullyQualifiedClassname),
                 $this->phpVersion
@@ -219,6 +258,7 @@ class Build extends Base {
 
             if ($this->updateCache($fullyQualifiedClassname, $path, $contentHash)) {
                 $this->compiled++;
+                $this->classmap = array_merge($this->classmap, $classmap);
                 return true;
             }
 

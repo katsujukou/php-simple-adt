@@ -20,50 +20,79 @@ if (!exec('which composer 2>/dev/null', $whichComposer)) {
 
 define("__COMPOSER__", $whichComposer[0]);
 unset($whichComposer);
+list($operation, $attributes, $inputs) = parseAgs($argv);
+switch ($operation) {
+    case 'build':
+        if (count($inputs) <= 0) {
+            showBuildUsage("Must specify at least one file.");
+        }
 
-list($paths, $attributes) = parseAgs($argv);
+        $phpParser = (new \PhpParser\ParserFactory)->create(\PhpParser\ParserFactory::PREFER_PHP7);
 
-if (count($paths) <= 0) {
-    showUsage("Must specify at least one file.");
+        $adtNodeVisitor = new \SimpleADT\Internal\AdtNodeVisitor(
+            new \PHPStan\PhpDocParser\Parser\PhpDocParser(
+                new \PHPStan\PhpDocParser\Parser\TypeParser(),
+                new \PHPStan\PhpDocParser\Parser\ConstExprParser()
+            ),
+            new \PHPStan\PhpDocParser\Lexer\Lexer()
+        );
+
+        $nodeTraverser = new \PhpParser\NodeTraverser();
+        $nodeTraverser->addVisitor(new \PhpParser\NodeVisitor\NameResolver());
+
+        $buildCommand = new SimpleADT\Command\Build(
+            new \SimpleADT\Internal\Parser(
+                $phpParser, $nodeTraverser, $adtNodeVisitor
+            ),
+            new \SimpleADT\Internal\Builder(),
+            $attributes
+        );
+
+        $buildCommand->run($inputs);
+        break;
+
+    case 'dump-autoload':
+        (new \SimpleADT\Command\DumpAutoload())->run();
+        break;
+
+    default:
+        showUsage("phalg: Unknown operation $operation");
 }
 
-$phpParser = (new \PhpParser\ParserFactory)->create(\PhpParser\ParserFactory::PREFER_PHP7);
-
-$adtNodeVisitor = new \SimpleADT\Internal\AdtNodeVisitor(
-    new \PHPStan\PhpDocParser\Parser\PhpDocParser(
-        new \PHPStan\PhpDocParser\Parser\TypeParser(),
-        new \PHPStan\PhpDocParser\Parser\ConstExprParser()
-    ),
-    new \PHPStan\PhpDocParser\Lexer\Lexer()
-);
-
-$nodeTraverser = new \PhpParser\NodeTraverser();
-$nodeTraverser->addVisitor(new \PhpParser\NodeVisitor\NameResolver());
-
-$buildCommand = new SimpleADT\Command\Build(
-//    $consoleColor,
-    new \SimpleADT\Internal\Parser(
-        $phpParser, $nodeTraverser, $adtNodeVisitor
-    ),
-    new \SimpleADT\Internal\Builder(),
-    $attributes
-);
-
-$buildCommand->run($paths);
-
 function showUsage($error = '') {
+    if ($error) {
+        fwrite(STDERR, $error."\n\n");
+    }
+    fwrite($error ? STDERR : STDOUT, <<<USAGE
+Usage: phalg COMMAND
+  The PHP-Simple-ADT compiler and tools
+
+Available options:
+  --version                Show the version number
+  -h,--help                Show this help text
+
+Available commands:
+  build             Compile php source files containing ADTs.
+  dump-autoload     Update autoload files with `composer dump-autoload` 
+
+For help using each individual command, run `phalg COMMAND --help`. For example,
+`phalg build --help` displays options specific to the `build` command.
+
+USAGE
+    );
+    exit($error ? 1 : 0);
+}
+
+function showBuildUsage($error = '') {
     if ($error) {
         fwrite(STDERR, $error . "\n\n");
     }
     fwrite($error ? STDERR : STDOUT, <<<USAGE
-Usage: phalg build [-h|--help] [--version] [input-path] [-w|--watch]
-                   [-l|--clear] [-f|--force] [--no-dump-autoload]
-                   [--php-version ARG]
+Usage: phalg build [input-path] [-w|--watch] [-l|--clear] [-f|--force]
+                   [-x|--php-version ARG] [--no-dump-autoload] 
   Compile php source files containing ADTs. 
  
 Available options;
-  --version             Show library version
-  -h, --help            Show this help text
   input-path            Paths to the source files or directories
   -w,--watch            Watch for changes in local files and
                         automatically rebuild
@@ -71,9 +100,24 @@ Available options;
   -f,--force            Compile all of input files without using compiled cache
   --no-dump-autoload    Don't run the `composer dump-autoload` command after
                         successful compilation
-  --php-version         PHP version of output code. You can pass one of
+  -x|--php-version      Target PHP version of output code. You can pass one of
                         the following: 'php73', 'php74', 'php80'
 
+USAGE
+    );
+    exit($error ? 1 : 0);
+}
+
+function showDumpAutoUsage($error = '') {
+    if ($error) {
+        fwrite(STDERR, $error . "\n\n");
+    }
+    fwrite($error ? STDERR : STDOUT, <<<USAGE
+Usage: phalg dump-autoload [--composer-args ARG]
+  Run `composer dump-autoload` and Update autoload files
+ 
+Available options;
+  --composer-args       Argument to pass to composer
 
 USAGE
     );
@@ -88,7 +132,31 @@ function showVersion () {
 
 function parseAgs ($args) {
     array_shift($args);
+    $command = array_shift($args);
 
+    switch ($command) {
+        case 'build':
+            return parseBuildOpts($args);
+
+        case 'dump-autoload':
+            return parseDumpAutoOpts($args);
+
+        case '--version':
+            showVersion();
+            break;
+
+        case '-h':
+        case '--help':
+            showUsage();
+            break;
+
+        default:
+            showUsage("Invalid operation $command.");
+            break;
+    }
+}
+
+function parseBuildOpts ($args) {
     $paths = [];
     $attributes = [
         'force' => false,
@@ -97,6 +165,7 @@ function parseAgs ($args) {
         'watch' => false,
         'clear' => false,
     ];
+
     $parseOptions = true;
     $discard = 0;
     foreach ($args as $i => $arg) {
@@ -132,7 +201,7 @@ function parseAgs ($args) {
 
             case '-h':
             case '--help':
-                showUsage();
+                showBuildUsage();
                 break;
 
             case '--version':
@@ -141,7 +210,7 @@ function parseAgs ($args) {
 
             default:
                 $phpVer = null;
-                if ($arg === '--php-version') {
+                if ($arg === '--php-version' || $arg === '-x') {
                     $phpVer = $args[$i + 1];
                     $discard++;
                 }
@@ -150,18 +219,60 @@ function parseAgs ($args) {
                 }
                 if ($phpVer) {
                     if (!in_array($phpVer, ['php73', 'php74', 'php80'])) {
-                        showUsage("option --php-version: Accepted php versions are 'php73', 'php74', 'php80'");
+                        showUsage("option -x|--php-version: Accepted php versions are 'php73', 'php74', 'php80'");
                     }
                     $attributes['php-version'] = $phpVer;
                     break;
                 }
 
                 if ($arg[0] === '-') {
-                    showUsage("Invalid operation $arg.");
+                    showBuildUsage("Invalid option $arg.");
                 } else {
                     $paths[] = $arg;
                 }
         }
     }
-    return [$paths, $attributes];
+    return ["build", $attributes, $paths];
+}
+
+function parseDumpAutoOpts ($args) {
+    $attributes = [
+        'composer-args' => "",
+    ];
+
+    $discard = 0;
+    foreach ($args as $i => $arg) {
+        if ($discard) {
+            $discard--;
+            continue;
+        }
+
+        switch ($arg) {
+            case '-h':
+            case '--help':
+                showDumpAutoUsage();
+                break;
+
+            case '--version':
+                showVersion();
+                break;
+
+            default:
+                if ($arg === '--composer-args') {
+                    $composerArgs = $args[$i + 1];
+                    $discard++;
+                }
+                else if (preg_match("/--composer-args=(.*)/", $arg, $matched)) {
+                    $composerArgs = $matched[1];
+                }
+
+                if (isset($composerArgs)) {
+                    $attributes['composer-args'] = $composerArgs;
+                    break;
+                }
+
+                showDumpAutoUsage("Invalid option $arg.");
+        }
+    }
+    return ["dump-autoload", $attributes, []];
 }

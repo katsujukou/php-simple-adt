@@ -155,23 +155,17 @@ class Build extends Base {
         }
 
         try {
+            $maps = array_merge((require($path)), $this->classmap);
             copy($path, $path . '.bak');
-            $orig = file_get_contents($path);
-            $modified = preg_replace_callback("/([\s\S]*)(^return array\([\s\S]*)/m", function ($matched) {
-                return $matched[1] . <<<CLASSMAP
-// @modified by Phalg
-\$adtOutputDir = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR . 'output';
+            $matched = [];
+            preg_match("/([\s\S]*)(^return array\([\s\S]*)/m", file_get_contents($path), $matched);
+            $code = $matched[1].PHP_EOL
+                . '// @modified by Phalg'.PHP_EOL
+                . "\$adtOutputDir = dirname(dirname(__DIR__)) . DIRECTORY_SEPARATOR . '.output';".PHP_EOL
+                . "return array("
+                . str_replace("'__ADT_OUTPUT_DIR__", "\$adtOutputDir . '", var_export($maps, true));
 
-
-CLASSMAP . $matched[2];
-            }, $orig);
-            $modified = trim(preg_replace("/^\);$/m", "", $modified)) . PHP_EOL
-                . strtr(var_export($this->classmap, true), [
-                    "array (" => "",
-                    "'__ADT_OUTPUT_DIR__" => "\$adtOutputDir . '"
-                ]) . ";";
-
-            file_put_contents($path . ".php", $modified);
+            file_put_contents($path . ".test..php", $code);
             unlink($path . '.bak');
             return true;
         }

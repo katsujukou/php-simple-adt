@@ -23,5 +23,4 @@ abstract class Maybe extends \SimpleADT\ADT
     public static function Just($val) :Maybe {
         return self::create($val);
     }
-
 }

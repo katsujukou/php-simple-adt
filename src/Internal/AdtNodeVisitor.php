@@ -4,8 +4,12 @@
 namespace SimpleADT\Internal;
 
 
+use PhpParser\Node\Identifier;
+use PhpParser\Node\Name;
+use PhpParser\Node\NullableType;
 use PhpParser\Node\Param;
 use PhpParser\Node\Stmt;
+use PhpParser\Node\UnionType;
 use PhpParser\NodeVisitorAbstract;
 use PHPStan\PhpDocParser\Lexer\Lexer;
 use PHPStan\PhpDocParser\Parser\PhpDocParser;
@@ -42,6 +46,11 @@ class AdtNodeVisitor extends NodeVisitorAbstract
     private $phpDocLexer;
 
     /**
+     * @var string
+     */
+    private $targetPhpVersion;
+
+    /**
      * AdtNodeVisitor constructor.
      * @param PhpDocParser $phpDocParser
      * @param Lexer $phpDocLexer
@@ -49,11 +58,16 @@ class AdtNodeVisitor extends NodeVisitorAbstract
     public function __construct($phpDocParser, $phpDocLexer) {
         $this->phpDocParser = $phpDocParser;
         $this->phpDocLexer = $phpDocLexer;
+        $this->targetPhpVersion = "php73";
     }
 
     public function init() {
         $this->adt = [];
         $this->alias = [];
+    }
+
+    public function setTargetPHPVer(string $phpVer) {
+        $this->targetPhpVersion = $phpVer;
     }
 
     /**
@@ -180,8 +194,31 @@ class AdtNodeVisitor extends NodeVisitorAbstract
         $docType = $docTypeAnnotations[$varName];
         $annotation = in_array($docTypeAnnotations[$varName], $typeParams)
                 ? Annotation::TypeParam($docTypeAnnotations[$varName])
-                : Annotation::TypeLit((string)$param->type, $docType);
+                : Annotation::TypeLit($this->toText($param->type), $docType);
         return new Parameter((string)$param->var->name, $annotation);
+    }
+
+    /**
+     * @param null|Identifier|Name|NullableType|UnionType|string
+     */
+    private function toText ($type) :string {
+        if ($type instanceof NullableType) {
+            return "?" . $type->type->name;
+        }
+        else if ($type instanceof UnionType) {
+            return $this->targetPhpVersion === "php80"
+                ? array_reduce($type->types, function ($acc, $type) {
+                    return $acc . "|" . $type->name;
+                }, "")
+                : "";
+        }
+        else if ($type instanceof Name) {
+            return $type->toString();
+        }
+        else if ($type instanceof Identifier) {
+            return $type->name;
+        }
+        return (string)$type->type;
     }
 
     /**

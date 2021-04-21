@@ -87,6 +87,8 @@ class Build extends Base {
         $this->noDumpAutoload = $this->attributes['no-dump-autoload'];
         $this->phpVersion = $this->attributes['php-version'];
 
+        $this->parser->setTargetPHPVer($this->phpVersion);
+
         if (is_dir($this->output) &&
             is_file($this->output. "/cache-db.json")
         ) {

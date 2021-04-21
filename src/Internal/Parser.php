@@ -46,4 +46,9 @@ class Parser {
         return $this->adtVisitor->toResolvedAdt();
     }
 
+    public function setTargetPHPVer(string $phpVersion)
+    {
+        $this->adtVisitor->setTargetPHPVer($phpVersion);
+    }
+
 }

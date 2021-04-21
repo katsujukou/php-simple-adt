@@ -48,6 +48,7 @@ class TypeResolver
      */
     public static function resolveDocType($type, $alias, $ignored, $namespace)
     {
+        // Test for parametric polymorphic type
         $matched = [];
         preg_match("/([a-zA-Z0-9_\\\\]*)(<(.*)>)?/", $type, $matched);
         $suffix = "";
@@ -57,6 +58,22 @@ class TypeResolver
                 $resolvedInner[] = self::resolveDocType(trim($inner), $alias, $ignored, $namespace);
             }
             $suffix = "<".implode(",", $resolvedInner).">";
+        }
+
+        // Test for homogeneous array (TODO: Record-like array type is WIP!)
+        preg_match("/([a-zA-Z0-9_\\\\]*)\\[\]/", $type, $arrayMatched);
+        if (isset($arrayMatched[1])) {
+            return self::resolveDocType($arrayMatched[1], $alias, $ignored, $namespace)."[]";
+        }
+
+        // Test for union type
+        preg_match("/\(([a-zA-Z0-9_\\\\\\|\s]*)\)/", $type, $unionMatched);
+        if (isset($unionMatched[1])) {
+            $union = array_map(function ($t) { return trim($t); }, explode("|", $unionMatched[1]));
+            return "(" . implode(" | ", array_map(function ($unionType) use ($alias, $ignored, $namespace) {
+                    return self::resolveDocType($unionType, $alias, $ignored, $namespace);
+                    }, $union)
+                ) . ")";
         }
 
         if (in_array($matched[1], $ignored)) {

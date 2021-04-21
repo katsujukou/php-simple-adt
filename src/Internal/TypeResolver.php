@@ -32,6 +32,10 @@ class TypeResolver
             return $type;
         }
 
+        if ($type[0] === '?') {
+            return '?'.self::resolveType(substr($type, 1), $alias, $global);
+        }
+
         return $global ."\\". (array_key_exists($type, $alias) ? $alias[$type] : $type);
     }
 

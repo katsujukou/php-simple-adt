@@ -76,7 +76,7 @@ final class MatchExpression
                 $hint = "Hint: Consider making the method {$adtClassName}::{$caseClass} static.";
                 $ok = false;
             }
-            if (!preg_match("/@adt-constructor\s*$/", $method->getDocComment())) {
+            if (!preg_match("/@adt-constructor\s*$/m", $method->getDocComment())) {
                 $hint = "Hint: Consider annotating the method {$adtClassName}::{$caseClass} with `@adt-constructor` in the Doc block.";
                 $ok = false;
             }

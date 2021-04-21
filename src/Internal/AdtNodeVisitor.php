@@ -203,7 +203,7 @@ class AdtNodeVisitor extends NodeVisitorAbstract
      */
     private function toText ($type) :string {
         if ($type instanceof NullableType) {
-            return "?" . $type->type->name;
+            return "?" . (string)$type->type;
         }
         else if ($type instanceof UnionType) {
             return $this->targetPhpVersion === "php80"

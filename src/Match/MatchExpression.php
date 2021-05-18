@@ -66,8 +66,10 @@ final class MatchExpression
     /**
      * @param string $caseClass
      */
-    private function checkCaseClass(string $caseClass) :void {
+    private function checkCaseClass(string $fullyQualifiedCaseClass) :void {
         $adtClassName = $this->adtClass->getNamespaceName();
+        $caseClassParts = explode("\\", $fullyQualifiedCaseClass);
+        $caseClass = $caseClassParts[count($caseClassParts) - 1];
 
         $ok = true;
         try {

@@ -139,10 +139,10 @@ final class MatchExpression
                 $prop->setAccessible(true);
                 $args[] = $prop->getValue($this->target);
             }
-            return $expr(...$args);
         }
         catch (\Throwable $e) {
             throw new PatternMatchException("Failed to reproduce data constructor arguments", $e->getCode(), $e->getPrevious());
         }
+        return $expr(...$args);
     }
 }
